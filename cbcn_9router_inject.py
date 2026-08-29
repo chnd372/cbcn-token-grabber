@@ -24,7 +24,7 @@ def main():
         sys.exit(1)
         
     # Get 9router config from environment or prompts
-    router_url = os.environ.get("ROUTER_URL") or input("Enter 9router Base URL (e.g. https://api.icantl.my.id): ").strip()
+    router_url = os.environ.get("ROUTER_URL") or input("Enter 9router Base URL (e.g. http://localhost:3000): ").strip()
     router_password = os.environ.get("ROUTER_PASSWORD") or input("Enter 9router Admin Password: ").strip()
     connection_name = input(f"Enter connection name (default: CB_{phone}): ").strip() or f"CB_{phone}"
     

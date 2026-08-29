@@ -38,7 +38,7 @@ We provide a helper script to automatically inject the token JSON payload into y
    python cbcn_9router_inject.py
    ```
 2. Enter the path to your token JSON file (e.g., `cbcn_tokens_70211189.json`).
-3. Enter your 9router base URL (e.g., `https://api.icantl.my.id`).
+3. Enter your 9router base URL (e.g., `http://localhost:3000`).
 4. Enter your 9router admin password.
 5. The script will log in and create the connection under the name `CB_<phone>`.
 

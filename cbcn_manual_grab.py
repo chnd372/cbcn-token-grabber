@@ -110,8 +110,9 @@ def main():
 
     tdata = token_res["data"]
     
-    # Save tokens to local JSON file
-    filename = f"cbcn_tokens_{phone_input}.json"
+    # Save tokens inside tokens/ folder
+    os.makedirs("tokens", exist_ok=True)
+    filename = os.path.join("tokens", f"cbcn_tokens_{phone_input}.json")
     with open(filename, "w") as f:
         json.dump({
             "phone": phone_full,

@@ -7,26 +7,18 @@ import os
 import urllib.parse
 from bs4 import BeautifulSoup
 
-def main():
-    print("=== CodeBuddy CN Token Grabber (Manual Version) ===")
+def process_single_account(session, proxy):
+    print("\n" + "-"*40)
+    phone_input = input("Enter 8-digit HK phone number (e.g. 70981305, or 'q' to quit): ").strip()
     
-    proxy = input("Enter HK Proxy (press Enter to skip): ").strip()
-    phone_input = input("Enter 8-digit HK phone number (e.g. 70981305): ").strip()
-    
+    if phone_input.lower() in ['q', 'quit', 'exit']:
+        return False
+        
     if not phone_input.isdigit() or len(phone_input) != 8:
         print("Error: Phone number must be 8 digits.")
-        sys.exit(1)
+        return True
         
     phone_full = "+852" + phone_input
-    
-    session = requests.Session()
-    if proxy:
-        session.proxies = {"http": proxy, "https": proxy}
-        print(f"Using proxy: {proxy}")
-        
-    session.headers.update({
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-    })
 
     # 1. State
     print("\n[1] Fetching OIDC State...")
@@ -40,11 +32,10 @@ def main():
         })
         state_data = resp.json()
         device_code = state_data['data']['state']
-        auth_url = state_data['data']['authUrl']
         print(f"Device Code: {device_code}")
     except Exception as e:
         print("Error fetching state:", e)
-        sys.exit(1)
+        return True
 
     # 2. OIDC form
     print("[2] Initiating Keycloak login flow...")
@@ -55,7 +46,7 @@ def main():
     form = soup.find('form', id='kc-form-login')
     if not form:
         print("Error: Keycloak form not found. CodeBuddy CN block or proxy issue.")
-        sys.exit(1)
+        return True
         
     action = html.unescape(form.get('action'))
 
@@ -72,7 +63,7 @@ def main():
     
     if not otp.isdigit() or len(otp) != 6:
         print("Error: OTP must be 6 digits.")
-        sys.exit(1)
+        return True
 
     # 5. Submit OTP
     print("[4] Submitting OTP...")
@@ -106,7 +97,7 @@ def main():
 
     if token_res.get("code") != 0 or not token_res.get("data", {}).get("accessToken"):
         print("Error: Token extraction failed.", token_res)
-        sys.exit(1)
+        return True
 
     tdata = token_res["data"]
     
@@ -126,6 +117,31 @@ def main():
     print(f"Access Token (truncated): {tdata['accessToken'][:30]}...")
     print(f"Refresh Token (truncated): {tdata['refreshToken'][:30]}...")
     print(f"Expires In: {tdata['expiresIn']} seconds (~60 days)")
+    return True
+
+def main():
+    print("=== CodeBuddy CN Token Grabber (Manual Version) ===")
+    
+    proxy = input("Enter HK Proxy (press Enter to skip): ").strip()
+    session = requests.Session()
+    if proxy:
+        session.proxies = {"http": proxy, "https": proxy}
+        print(f"Using proxy: {proxy}")
+        
+    session.headers.update({
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    })
+
+    while True:
+        cont = process_single_account(session, proxy)
+        if not cont:
+            print("\nExiting. All tokens saved in 'tokens/' directory.")
+            break
+            
+        ask = input("\nDo you want to add another account? (y/n, default: y): ").strip().lower()
+        if ask in ['n', 'no']:
+            print("\nExiting. All tokens saved in 'tokens/' directory.")
+            break
 
 if __name__ == "__main__":
     main()

@@ -72,17 +72,33 @@ def process_single_account(session, proxy):
         "phoneNumber": phone_full,
         "username": phone_full,
         "code": otp,
-        "credentialId": "",
         "phoneActivated": "true",
         "login": "登录"
     }
+    
+    # allow_redirects=False agar bisa menangkap 302 Redirect URI yang berisi Auth Code
     resp_post = session.post(action, data=post_data, headers={
         "Content-Type": "application/x-www-form-urlencoded",
         "Referer": r_kc.url,
         "Origin": "https://www.codebuddy.cn"
-    }, allow_redirects=True)
+    }, allow_redirects=False)
 
-    # 6. Enterprise verification (state 2) to fetch tokens
+    print(f"Submit HTTP Code: {resp_post.status_code}")
+    
+    # 6. Check 302 Redirect or error page
+    if resp_post.status_code == 302:
+        redirect_url = resp_post.headers.get('Location')
+        print(f"Redirecting to APISIX OAuth callback...")
+        session.get(redirect_url, allow_redirects=True)
+    elif resp_post.status_code == 200:
+        # 200 means Keycloak rejected submit (wrong OTP or expired)
+        soup_err = BeautifulSoup(resp_post.text, 'html.parser')
+        err_div = soup_err.find('span', {'class': 'kc-feedback-text'}) or soup_err.find('div', {'class': 'alert-error'})
+        print("❌ Login Rejected by Keycloak! Reason:", err_div.text.strip() if err_div else "OTP code incorrect or session expired.")
+        print("⚠️ Tip: Please cancel/ban number on 5sim and try a fresh number.")
+        return True
+
+    # 7. Enterprise verification (state 2) to fetch tokens
     print("[5] Resolving SaaS session tokens...")
     time.sleep(1)
     confirm_headers = {
@@ -95,9 +111,9 @@ def process_single_account(session, proxy):
     try:
         token_res = r_ent.json()
     except Exception as e:
-        print("❌ Error: Response was not JSON (Auth Failed or 401/403 Keycloak rejection).")
-        print("Raw response (first 200 chars):", r_ent.text[:200])
-        print("👉 Tip: Check your OTP or try without proxy / fresh IP. Ban/cancel number on 5sim if code was wrong.")
+        print("❌ Error: SaaS session creation failed (HTTP 401/403).")
+        print("Raw response:", r_ent.text[:200])
+        print("👉 Tip: Check your OTP or try a fresh number/IP. Ban number on 5sim.")
         return True
 
     if token_res.get("code") != 0 or not token_res.get("data", {}).get("accessToken"):

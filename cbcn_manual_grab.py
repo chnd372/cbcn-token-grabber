@@ -5,6 +5,7 @@ import html
 import sys
 import os
 import urllib.parse
+import time
 from bs4 import BeautifulSoup
 
 def process_single_account(session, proxy):
@@ -43,8 +44,8 @@ def process_single_account(session, proxy):
     r_kc = session.get(kc_url)
     
     soup = BeautifulSoup(r_kc.text, 'html.parser')
-    form = soup.find('form', id='kc-form-login')
-    if not form:
+    form = soup.find('form', id='kc-form-login') or soup.find('form', id='kc-sms-login-form') or soup.find('form')
+    if not form or 'action' not in form.attrs:
         print("Error: Keycloak form not found. CodeBuddy CN block or proxy issue.")
         return True
         
@@ -69,6 +70,7 @@ def process_single_account(session, proxy):
     print("[4] Submitting OTP...")
     post_data = {
         "phoneNumber": phone_full,
+        "username": phone_full,
         "code": otp,
         "credentialId": "",
         "phoneActivated": "true",
@@ -78,22 +80,25 @@ def process_single_account(session, proxy):
         "Content-Type": "application/x-www-form-urlencoded",
         "Referer": r_kc.url,
         "Origin": "https://www.codebuddy.cn"
-    }, allow_redirects=False)
+    }, allow_redirects=True)
 
-    # 6. Follow redirect to APISIX
-    redirect_url = resp_post.headers.get('Location')
-    if redirect_url:
-        session.get(redirect_url, allow_redirects=True)
-
-    # 7. Enterprise verification (state 2) to fetch tokens
+    # 6. Enterprise verification (state 2) to fetch tokens
     print("[5] Resolving SaaS session tokens...")
+    time.sleep(1)
     confirm_headers = {
         "Content-Type": "application/json",
         "Referer": "https://www.codebuddy.cn/console/accounts",
         "X-Requested-With": "XMLHttpRequest"
     }
     r_ent = session.post("https://www.codebuddy.cn/console/login/enterprise", json={"state": 2}, headers=confirm_headers)
-    token_res = r_ent.json()
+    
+    try:
+        token_res = r_ent.json()
+    except Exception as e:
+        print("❌ Error: Response was not JSON (Auth Failed or 401/403 Keycloak rejection).")
+        print("Raw response (first 200 chars):", r_ent.text[:200])
+        print("👉 Tip: Check your OTP or try without proxy / fresh IP. Ban/cancel number on 5sim if code was wrong.")
+        return True
 
     if token_res.get("code") != 0 or not token_res.get("data", {}).get("accessToken"):
         print("Error: Token extraction failed.", token_res)

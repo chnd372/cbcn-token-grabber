@@ -1,13 +1,20 @@
-# CodeBuddy CN Manual Token Grabber
+# CodeBuddy CN Token Grabber & 9Router Injector
 
-Simple Python tool to manually log in to CodeBuddy CN (+852 Hong Kong numbers) and extract the **60-day OAuth token pair** (Access + Refresh tokens) for use in 9router/OneiAPI.
+Python toolkit to manually acquire **60-day OAuth token pairs** (Access + Refresh tokens) for CodeBuddy CN (+852 Hong Kong numbers) and automatically verify/inject them into 9router / OneiAPI.
 
-## Features
-- Generates a device OIDC authorization flow.
-- Triggers SMS code delivery to your HK number.
-- Prompts for OTP code in terminal.
-- Performs backend login and returns raw tokens inside `tokens/cbcn_tokens_<phone>.json`.
-- Includes a **bulk injector** script to push all acquired tokens into 9router/OneiAPI at once.
+## Features & Scripts
+
+1. **`cbcn_manual_grab.py` (Manual Grabber + Instant Injector)**
+   - Enter your 8-digit Hong Kong number.
+   - Triggers SMS delivery to phone.
+   - Enter 6-digit OTP code in terminal.
+   - Harvests enterprise state 2 tokens (valid 60 days).
+   - Saves token JSON locally in `tokens/cbcn_tokens_<phone>.json`.
+   - **Direct 9router Inject + Ping Test:** Optionally injects immediately into 9router and verifies via streaming ping test (`glm-5.2`).
+
+2. **`cbcn_9router_inject.py` (Bulk Injector + Ping Verify)**
+   - Scans all files in `tokens/*.json` and bulk-injects them into 9router.
+   - Runs stream chat completion tests against upstream to verify active state.
 
 ## Setup
 
@@ -16,39 +23,14 @@ Simple Python tool to manually log in to CodeBuddy CN (+852 Hong Kong numbers) a
    pip install requests beautifulsoup4
    ```
 
-2. Run the token grabber script to create account(s):
+2. Run grabber:
    ```bash
-   python cbcn_manual_grab.py
+   python3 cbcn_manual_grab.py
    ```
-   *(Repeat as many times as you want for multiple numbers. All JSON files automatically drop into `tokens/`)*
 
-## Detailed Execution Steps
-
-1. **Enter HK Proxy (optional):** Enter proxy address if Tencent blocks datacenter IPs. Hit Enter to skip if running locally.
-2. **Enter Phone:** Input your 8-digit Hong Kong number (e.g. `70981305`). Do not include prefix `+852`.
-3. **Wait for SMS:** Check your SMS box/5sim panel. Type the 6-digit code in the terminal prompt and hit Enter.
-4. **Acquire Tokens:** The script outputs success status and saves tokens to `tokens/cbcn_tokens_<phone>.json`.
-
-## How to Inject into 9Router / OneiAPI (Bulk)
-
-### Method 1: Using the Bulk Auto-Injector Script (Recommended)
-We provide a helper script to automatically scan the `tokens/` folder and inject **all acquired JSON tokens** into your 9router backend:
-
-1. Run the bulk injector:
+3. Optional environment variables to skip prompts:
    ```bash
-   python cbcn_9router_inject.py
+   export ROUTER_URL="https://api.icantl.my.id"
+   export ROUTER_PASSWORD="your_password"
+   export PROXY="http://user:pass@gw.dataimpulse.com:823" # Recommended if VPS IP gets WAF 403
    ```
-2. Enter your 9router base URL (e.g., `http://localhost:3000`).
-3. Enter your 9router admin password.
-4. The script scans `tokens/*.json` and registers every account under `CB_<phone>`.
-
-*(Tip: Set `ROUTER_URL` and `ROUTER_PASSWORD` environment variables to skip prompts)*
-
----
-
-### Method 2: Manual Web UI
-1. Open your 9router Dashboard.
-2. Go to **Providers** page and search for **CodeBuddy CN**.
-3. Click **API Key**.
-4. Open the JSON file in `tokens/` and copy the **`accessToken`** string into the **API Key** box.
-5. Save.

@@ -4,8 +4,36 @@ import glob
 import json
 import requests
 
+def ping_verify_provider(router_url, s_router, connection_name):
+    """Ping test streaming chat completion against 9router upstream"""
+    print(f"    [PING] Testing '{connection_name}' upstream...")
+    try:
+        ping_url = f"{router_url}/v1/chat/completions"
+        ping_payload = {
+            "model": "glm-5.2",
+            "messages": [{"role": "user", "content": "hi"}],
+            "stream": True
+        }
+        r = s_router.post(ping_url, json=ping_payload, headers={"Content-Type": "application/json"}, timeout=20, stream=True)
+        if r.status_code != 200:
+            print(f"    [PING FAIL] HTTP {r.status_code}")
+            return False
+        chunk = False
+        for line in r.iter_lines():
+            if line:
+                chunk = True
+                break
+        if not chunk:
+            print("    [PING FAIL] Empty stream body.")
+            return False
+        print("    [PING OK] Stream response received, connection alive.")
+        return True
+    except Exception as e:
+        print(f"    [PING FAIL] {e}")
+        return False
+
 def main():
-    print("=== 9Router / OneiAPI Bulk Connection Injector ===")
+    print("=== 9Router / OneiAPI Bulk Connection Injector + Ping Verification ===")
     
     tokens_dir = "tokens"
     if not os.path.exists(tokens_dir):
@@ -22,6 +50,7 @@ def main():
     # Get 9router config from environment or prompts
     router_url = os.environ.get("ROUTER_URL") or input("Enter 9router Base URL (e.g. http://localhost:3000): ").strip()
     router_password = os.environ.get("ROUTER_PASSWORD") or input("Enter 9router Admin Password: ").strip()
+    skip_ping = (os.environ.get("SKIP_PING") or "").lower() in ["1", "true", "yes"]
     
     router_url = router_url.rstrip('/')
     
@@ -42,6 +71,7 @@ def main():
     print("\n[2] Injecting connections into 9router...")
     success_count = 0
     fail_count = 0
+    ping_fail_count = 0
 
     for file_path in json_files:
         try:
@@ -80,6 +110,14 @@ def main():
             if r_add.status_code in [200, 201]:
                 print(f"  [+] Injected '{connection_name}' from {os.path.basename(file_path)}")
                 success_count += 1
+
+                # 3. Ping verification (Golden Rule)
+                if not skip_ping:
+                    if ping_verify_provider(router_url, session, connection_name):
+                        pass
+                    else:
+                        ping_fail_count += 1
+                        print(f"    [!] Ping failed for '{connection_name}' - token may need refresh or invalid.")
             else:
                 print(f"  [-] Failed '{connection_name}': HTTP {r_add.status_code}")
                 fail_count += 1
@@ -89,7 +127,7 @@ def main():
             fail_count += 1
 
     print("\n" + "="*40)
-    print(f"INJECTION SUMMARY: {success_count} Succeeded, {fail_count} Failed.")
+    print(f"INJECTION SUMMARY: {success_count} Injected, {ping_fail_count} Ping-Failed, {fail_count} Failed.")
     print("="*40)
 
 if __name__ == "__main__":

@@ -1,0 +1,5 @@
+tokens/
+*.pkl
+*.env
+*.log
+__pycache__/
